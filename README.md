@@ -1,11 +1,11 @@
 # Polygenic liability to bipolar disorder and the plasma proteome (UK Biobank)
 
-> **Work in progress.** A manuscript based on this project is in preparation with Dr Rona Strawbridge
+> **Work in progress.** A manuscript based on this project is in preparation with [Dr Rona Strawbridge](https://www.gla.ac.uk/schools/healthwellbeing/staff/ronastrawbridge/)
 > (University of Glasgow). Specific results are omitted here until publication. No licence is currently
 > granted; please contact the authors before any reuse.
 
 This project comes from my MSc dissertation in Medical Genetics and Genomics at the University of Glasgow
-(June–August 2025, supervised by Dr Rona Strawbridge). It asks whether polygenic liability to bipolar disorder
+(June–August 2025, supervised by [Dr Rona Strawbridge](https://www.gla.ac.uk/schools/healthwellbeing/staff/ronastrawbridge/)). It asks whether polygenic liability to bipolar disorder
 is associated with circulating plasma protein levels in UK Biobank, and whether any such associations remain
 after adjustment for demographic, technical, lifestyle, cardiometabolic and psychiatric factors.
 
