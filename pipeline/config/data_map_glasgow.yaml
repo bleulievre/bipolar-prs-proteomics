@@ -1,0 +1,66 @@
+# Data map for the dataset supplied by the Strawbridge group for the dissertation (<group UKB extract>.dta,
+# converted to CSV), with column names as used in the original analysis code (UKB.R, 2025).
+# This dataset is already restricted to unrelated White British / White European participants, so the ancestry and
+# relatedness steps exclude no one; withdrawn participants are recognised by negative ids (UK Biobank convention).
+# VERIFY marks codings that the original code does not show.
+
+files:
+  participants: data/UKB.csv              # write.csv(read_dta("<group UKB extract>.dta")) as in UKB.R lines 7-13
+  prs: data/UKB.csv                       # prs_bp / prs_bp_std are columns of the same file
+  proteins: data/UKB.csv
+  mental: data/supplement.csv             # write.csv(read_dta("<psychiatric history file>.dta")) as in UKB.R lines 685-691
+id: n_eid
+withdrawn_negative_ids: true              # negative n_eid = withdrawn (UK Biobank convention; UKB.R filtered n_eid > 0 only in
+                                          # the commented-out preparation of the mental-illness file, line 694). VERIFY
+
+proteins:
+  columns: {from: 34, to: 761, check_names: config/olink_assay_ukb.tsv, first: null, last: null}
+                                          # VERIFY: set first/last to the names of columns 34 and 761 once the real header is
+                                          # seen; a non-synthetic run stops until they are set
+                                          # UKB.R line 18: data[, 34:761], positions as read back from UKB.csv (including
+                                          # the row-name column that write.csv adds). check_names stops the run if any
+                                          # selected column is not an Olink assay name (UK Biobank Resource 1013).
+
+variables:
+  prs_bd:          {type: numeric, column: prs_bp_std, file: prs}   # the supplied standardised score (UKB.R line 347)
+  prs_bd_raw:      {type: numeric, column: prs_bp, file: prs}       # used for the Spearman screen (UKB.R line 114)
+  prs_scz:         {type: numeric, column: prs_scz_std, file: prs, optional: true}   # VERIFY: name, if available
+  age:             {type: numeric, column: age_0_0}
+  sex:             {type: factor, column: sex_plink, levels: {1: male, 2: female}}  # PLINK coding (UKB.R line 1006 labels);
+                                                                                     # VERIFY T02: genetic or reported sex
+  pc1:             {type: numeric, column: PGC1}
+  pc2:             {type: numeric, column: PGC2}
+  pc3:             {type: numeric, column: PGC3}
+  pc4:             {type: numeric, column: PGC4}
+  pc5:             {type: numeric, column: PGC5}
+  pc6:             {type: numeric, column: PGC6}
+  pc7:             {type: numeric, column: PGC7}
+  pc8:             {type: numeric, column: PGC8}
+  array:           {type: factor_observed, column: chip}            # VERIFY T13: coding of the two arrays
+  townsend:        {type: numeric, column: townsend}
+  bmi:             {type: numeric, column: n_21001_0_0}
+  whr:             {type: numeric, column: whr_0}
+  # UKB.R lines 428-432 code 2 = current and everything else non-current; here "prefer not to answer" (-3) is NA.
+  alcohol_current: {type: codes, columns: [alcoholstatus], codes_1: [2], codes_0: [0, 1], codes_na: [-3]}
+  smoking_current: {type: codes, columns: [smokestatus], codes_1: [2], codes_0: [0, 1], codes_na: [-3]}
+  alcohol_legacy:  {type: codes, columns: [alcoholstatus], codes_1: [2], other: 0}   # as UKB.R (reproduction only)
+  smoking_legacy:  {type: codes, columns: [smokestatus], codes_1: [2], other: 0}
+  sbp:             {type: numeric, column: sbp_0}
+  dbp:             {type: numeric, column: dbp_0}
+  sbp_adj:         {type: numeric, column: adj_sbp_0}                 # medication-adjusted blood pressure
+  dbp_adj:         {type: numeric, column: adj_dbp_0}
+  stroke:          {type: precomputed, column: stroke_0}              # VERIFY R18: ~29% missing in the thesis
+  hypertension:    {type: precomputed, column: ht_0}
+  ihd:             {type: precomputed, column: ish_0}                 # ~26% missing in the thesis
+  lipid_lowering:  {type: precomputed, column: lipidlowering_0}
+  bp_medication:   {type: precomputed, column: htnmed_0}
+  t2d:             {type: precomputed, column: adj_probposs_t2dm_0}   # Eastwood 2016 probable/possible
+  antidepressant:  {type: precomputed, column: any_antidepBL}
+  antipsychotic:   {type: precomputed, column: any_antipsychBL}
+  egfr:            {type: precomputed, column: egfr, optional: true}  # not in the original dataset
+  psych_history:   {type: precomputed, column: anyMentalIllness, file: mental}   # VERIFY R06: definition
+  mental_present:  {type: present, file: mental}                     # 1 if the participant is in the supplement file
+  not_european:    {type: constant, value: 0}                         # dataset pre-filtered by the group (unrelated, White British or European)
+
+relatedness:
+  method: none                                                        # dataset pre-filtered (unrel)

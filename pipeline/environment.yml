@@ -1,0 +1,15 @@
+# Versions used to develop and test the code (2026-10-20). Create with: conda env create -p ./env -f environment.yml
+# The versions used for the published results are recorded in each analysis package (sessionInfo.txt).
+name: bdprs-olink-ukb
+channels: [conda-forge]
+dependencies:
+  - r-base=4.4.3
+  - r-data.table=1.18.6.1
+  - r-sandwich=3.1.3
+  - r-jsonlite=2.0.0
+  - r-yaml=2.3.12
+  - r-digest=0.6.39
+  - r-testthat=3.3.2
+  - r-haven          # only needed to read .dta files directly
+  - python=3.13
+  - matplotlib=3.11.1

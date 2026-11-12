@@ -1,0 +1,2 @@
+# VERIFY: UK Biobank codes, one per line (field 20003 uses coding 4; field 20002 uses coding 6).
+# Lines starting with # are ignored. The pipeline stops if this list is empty.

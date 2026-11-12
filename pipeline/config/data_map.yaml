@@ -1,0 +1,79 @@
+# Where each analysis variable comes from, and how it is recoded.
+# TEMPLATE for a UK Biobank Research Analysis Platform (RAP) export with columns named p<field>_i<instance>_a<array>.
+# Every line marked VERIFY must be checked against the actual extract and the UK Biobank Showcase codings
+# (https://biobank.ndph.ox.ac.uk/showcase/) before the real run. The codes below are Showcase codings as we
+# understand them; check them before relying on them.
+#
+# Recode types
+#   numeric      {column, codes_na}                    value as is; special codes listed in codes_na become NA
+#   ratio        {numerator, denominator}              e.g. waist / hip
+#   factor       {column, levels: {code: label}}       first level = reference; other codes become NA
+#   split        {column, cut, below, at_or_above}     two-level factor from a threshold
+#   codes        {columns | columns_prefix, codes_1 | codes_1_file, codes_0, codes_na, other, none}
+#                1 if any column holds a code in `codes_1`; else 0 if any holds a code in `codes_0`;
+#                else NA if any holds a code in `codes_na`; codes in no list take `other` (default NA);
+#                (keys are not called true/false because YAML reads those words as booleans)
+#                when every column is empty the value is `none` (default NA; 0 for medication or illness lists,
+#                where "nothing reported" means "no")
+#   precomputed  {column}                              0/1 or numeric column derived elsewhere (document how)
+# Add `file: prs` to read from the PRS file; `optional: true` lets the variable be absent.
+
+files:
+  participants: data/participants.tsv   # one row per participant; never committed (data/ is git-ignored)
+  prs: data/prs.tsv                     # eid, prs_bd [, prs_scz]: precomputed scores supplied with the project
+  proteins: data/olink_instance0.tsv    # eid + one column per assay (NPX), baseline instance
+  withdrawn: data/withdrawals.csv       # REQUIRED for real runs: latest UK Biobank withdrawal list, one eid per line
+  kinship: data/ukb_rel.dat             # optional: UK Biobank pairwise kinship file (columns ID1 ID2 ... Kinship)
+id: eid
+
+variables:
+  prs_bd:          {type: numeric, column: prs_bd, file: prs}
+  prs_scz:         {type: numeric, column: prs_scz, file: prs, optional: true}
+  age:             {type: numeric, column: p21022}                                  # age at recruitment
+  sex:             {type: factor, column: p31, levels: {0: female, 1: male}}         # VERIFY T02: or genetic sex p22001
+  pc1:             {type: numeric, column: p22009_a1}
+  pc2:             {type: numeric, column: p22009_a2}
+  pc3:             {type: numeric, column: p22009_a3}
+  pc4:             {type: numeric, column: p22009_a4}
+  pc5:             {type: numeric, column: p22009_a5}
+  pc6:             {type: numeric, column: p22009_a6}
+  pc7:             {type: numeric, column: p22009_a7}
+  pc8:             {type: numeric, column: p22009_a8}
+  array:           {type: split, column: p22000, cut: 0, below: UKBiLEVE, at_or_above: UKBAxiom}   # VERIFY T13
+  townsend:        {type: numeric, column: p189}
+  smoking_current: {type: codes, columns: [p20116_i0], codes_1: [2], codes_0: [0, 1], codes_na: [-1, -3]}    # VERIFY T06
+  alcohol_current: {type: codes, columns: [p20117_i0], codes_1: [2], codes_0: [0, 1], codes_na: [-1, -3]}    # VERIFY T06
+  bmi:             {type: numeric, column: p21001_i0}
+  whr:             {type: ratio, numerator: p48_i0, denominator: p49_i0}
+  # Extended Model 2 as in the original code. The derived columns must be prepared beforehand, and how each was
+  # derived must be documented (VERIFY R04a, R18); a template cannot fix these definitions.
+  sbp:             {type: precomputed, column: sbp_mean_i0}           # e.g. mean of automated readings (field 4080)
+  dbp:             {type: precomputed, column: dbp_mean_i0}           # field 4079
+  sbp_adj:         {type: precomputed, column: sbp_adj_i0}            # +15 mmHg if on antihypertensives (common practice)
+  dbp_adj:         {type: precomputed, column: dbp_adj_i0}            # +10 mmHg if on antihypertensives
+  stroke:          {type: codes, columns_prefix: p6150_i0_a, codes_1: [3], codes_0: [1, 2, 4, -7], codes_na: [-3]}
+  ihd:             {type: codes, columns_prefix: p6150_i0_a, codes_1: [1, 2], codes_0: [3, 4, -7], codes_na: [-3]}
+  hypertension:    {type: precomputed, column: hypertension_i0}       # definition to document
+  lipid_lowering:  {type: precomputed, column: lipid_lowering_i0}     # fields 6177/6153 or 20003 code list
+  bp_medication:   {type: precomputed, column: bp_medication_i0}      # fields 6177/6153 or 20003 code list
+  t2d:             {type: precomputed, column: t2d_eastwood_probable_possible}      # VERIFY R04b: Eastwood 2016
+  antidepressant:  {type: codes, columns_prefix: p20003_i0_a, codes_1_file: config/codes/antidepressants.txt, other: 0, none: 0}   # VERIFY R05
+  antipsychotic:   {type: codes, columns_prefix: p20003_i0_a, codes_1_file: config/codes/antipsychotics.txt, other: 0, none: 0}    # VERIFY R05
+  egfr:            {type: precomputed, column: egfr_ckdepi, optional: true}         # optional sensitivity analysis
+  # Exclusion flags (1 = exclude)
+  # Field 21000 is SELF-REPORTED ethnic background, not genetic ancestry. This keeps self-reported White (1, 1001-1003).
+  # For a genetic definition map field 22006 (genetic ethnic grouping) or the project's ancestry assignment instead,
+  # and name it accordingly in the Methods (VERIFY S05).
+  not_european:    {type: codes, columns: [p21000_i0], codes_0: [1, 1001, 1002, 1003], codes_na: [-1, -3], other: 1}
+  # Baseline self-reported illness only (field 20002). Other illness codes = no psychiatric history; all-empty = none
+  # reported. This is narrower than "lifetime illness or medication"; the group's anyMentalIllness may differ (VERIFY R06).
+  psych_history:   {type: codes, columns_prefix: p20002_i0_a, codes_1_file: config/codes/psychiatric_history.txt, codes_na: [-1, -3], other: 0, none: 0}
+
+relatedness:
+  method: kinship_pairs   # kinship_pairs | none   (VERIFY S06)
+  min_kinship: 0.0442     # KING kinship: >= 0.0442 third-degree or closer; >= 0.0884 second-degree or closer (VERIFY S06)
+  seed: 20261020          # one member of each related pair is removed at random, reproducibly
+
+proteins:
+  columns: {manifest: config/assay_manifest.csv}   # REQUIRED: one row per assay; column "column" = NPX column name
+                                                   # (add assay_id, target, uniprot, panel for the results tables)

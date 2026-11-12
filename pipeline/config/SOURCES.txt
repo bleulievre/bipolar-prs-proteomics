@@ -1,0 +1,2 @@
+olink_assay_ukb.tsv: UK Biobank Showcase Resource 1013 (olink_assay.dat), public assay list (Assay, UniProt, Panel).
+Downloaded 2026-10-20 from https://biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_assay.dat. Used by the check_names guard.

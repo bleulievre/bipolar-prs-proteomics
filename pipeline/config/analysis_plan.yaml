@@ -1,0 +1,110 @@
+# Analysis plan for: polygenic liability to bipolar disorder (BD-PRS) and plasma proteins in UK Biobank.
+# Status DRAFT until all authors agree it in writing (manuscript audit item A0). Before the real run:
+#   1. resolve every "VERIFY" and "DECISION" below; 2. set status: FROZEN, frozen_date and frozen_by; 3. commit and tag.
+# run_all.R labels outputs FROZEN only if status is FROZEN, frozen_date is set and the git working tree is clean.
+# Model definitions follow the original dissertation code (UKB.R, 2025) unless a change is stated here.
+
+plan_id: bdprs-olink-ukb
+version: 0.3.0
+status: DRAFT            # DRAFT | FROZEN
+frozen_date: null        # YYYY-MM-DD
+frozen_by: []            # names of the authors who agreed the plan
+
+exposure:
+  variable: prs_bd
+  scale: as_supplied     # as_supplied (the group's standardised score, as in the original code) | standardise_in_cohort
+  supplied_unit: standard_deviation   # standard_deviation | raw_unit: what one unit of the supplied score is (VERIFY P08);
+                                      # the run warns if the cohort mean/SD are not about 0/1
+
+# Decisions that must be resolved (status: resolved, with a value) before a run can be labelled FROZEN.
+decisions:
+  S05_ancestry:        {status: unresolved, value: null}   # self-reported White / genetic European / pre-filtered dataset
+  S06_relatedness:     {status: unresolved, value: null}   # kinship threshold and removal rule
+  T02_sex:             {status: unresolved, value: null}   # genetically inferred or reported sex
+  T13_array:           {status: unresolved, value: null}   # coding of the genotyping array
+  P08_prs_scale:       {status: unresolved, value: null}   # sample in which the score was standardised
+  R05_medication:      {status: unresolved, value: null}   # medication code lists; lithium included or not
+  R06_psych_history:   {status: unresolved, value: null}   # definition and timing of the psychiatric-history flag
+  D_A_extended2:       {status: unresolved, value: null}   # blood-pressure variables in Extended Model 2
+  D_B_restricted_na:   {status: unresolved, value: null}   # unknown psychiatric history in the restricted sample
+
+cohort:
+  # Exclusions applied in this order; each step's n is written to flow.json (Figure 1).
+  # A flag that is missing (NA) counts as "exclude": ancestry that cannot be confirmed is not assumed.
+  # Withdrawals and ancestry define the dataset; relatedness is pruned last, among participants who can be analysed
+  # (the pruned participants are removed from the dataset too). The original procedure runs on the dataset.
+  exclusions:
+    - {flag: withdrawn,    label: "Excluded: withdrew consent"}
+    - {flag: not_european, label: "Excluded: ancestry not in the frozen definition, or unknown"}   # VERIFY S05
+    - {flag: missing_prs,  label: "Excluded: missing BD-PRS"}
+    - {flag: missing_core, label: "Excluded: missing core covariates"}
+    - {flag: related,      label: "Excluded: relatedness"}         # VERIFY S06 (the group's dataset is pre-filtered)
+
+proteins:
+  max_missing_fraction: 0.10     # assays with a missing fraction strictly greater than this are excluded (<= kept)
+  missing_computed_in: input     # input = every row of the supplied file (as in the original code) | dataset | cohort
+
+covariates:
+  core: [age, sex, pc1, pc2, pc3, pc4, pc5, pc6, pc7, pc8, array]   # original code: no Townsend in the basic model
+  extended:                      # added cumulatively to the core set
+    ext1: [townsend, bmi, whr, alcohol_current, smoking_current]
+    # DECISION D-A (recommended default): medication-adjusted blood pressure only. The original code also entered
+    # measured blood pressure, which is exactly collinear with adjusted BP + antihypertensive use when the
+    # adjustment is a fixed increment; R's lm() then silently drops terms (see legacy_staged below).
+    ext2: [sbp_adj, dbp_adj, hypertension, stroke, ihd, lipid_lowering, bp_medication, t2d]
+    ext3: [antidepressant, antipsychotic]   # no lithium or other mood stabilisers in the original data (R05)
+
+primary:
+  model: core
+  alpha: 0.05
+  correction: bonferroni         # threshold = alpha / number of assays analysed
+  secondary: BH
+  fdr_q: 0.05
+  se: ols                        # conventional OLS standard errors
+  change_metric: "100 * |beta_model - beta_basic| / |beta_basic|"   # reported as median and range
+
+secondary:
+  models: [ext1, ext2, ext3]     # descriptive only; never used to select assays
+  common_sample: true            # per assay: complete data for every covariate in every model
+  restricted:
+    exclude_flag: psych_history  # the group's anyMentalIllness indicator (VERIFY R06)
+    na_action: exclude           # DECISION D-B: exclude (only participants known to be negative) | keep (as in the
+                                 # original code); report both, with their n and characteristics
+    model: core                  # basic model in the restricted sample; the BD-PRS keeps its cohort scaling
+
+sensitivity:
+  hc3: true
+  age_squared: true
+  egfr_required_for: []         # assays whose plasma level depends strongly on kidney function; if one is
+                                 # selected, the eGFR analysis must run (Olink assay symbols, set before the run)
+  optional:                      # run only if the variable is mapped in the data map
+    egfr: egfr                   # required if a selected assay is in egfr_required_for
+    scz_prs: prs_scz
+    prs_by_sex: true
+
+legacy_staged:                   # withdrawal-compliant reimplementation of the dissertation procedure (UKB.R), Table S5
+  enabled: true
+  sample: dataset                # the supplied dataset; each step uses the complete cases for its own variables
+  screen: spearman
+  screen_threshold: 1.0e-4       # UKB.R line 302 (the dissertation text says 0.05/365)
+  stages: [core, ext1, ext2, ext3, restricted]   # each later stage: alpha / number carried into it
+  alpha: 0.05
+  restricted_model: ext3         # UKB.R line 733: the full Extended Model 3 formula
+  restricted_na_action: keep     # UKB.R line 705: anyMentalIllness != 1 | is.na(anyMentalIllness)
+  # Thresholds as typed in UKB.R (lines 302, 412, 509, 590, 672, 788); the screen and every stage also drop P == 0
+  # (and the screen P == 1), as UKB.R did. Set to null to use alpha / number carried instead.
+  literal_thresholds: {spearman: 1.0e-4, core: 0.0021, ext1: 0.0025, ext2: 0.002631579, ext3: 0.004545455, restricted: 0.004545455}
+  drop_zero_p: true
+  # Smoking and alcohol as recoded in UKB.R lines 428-432: 2 = current, any other non-missing code (including -3) = not current
+  recode_override: {alcohol_current: alcohol_legacy, smoking_current: smoking_legacy}
+  # Difference that is kept on purpose: withdrawn participants (negative ids) are removed, as UK Biobank requires;
+  # UKB.R did not remove them from the main dataset. Their number is reported in Figure 1.
+  restricted_require: mental_present   # UKB.R line 697: merge() inner join drops those absent from the supplement
+  allow_aliased: true            # as lm() in UKB.R: aliased covariates are dropped and recorded, not an error
+  extended:                      # the original covariate sets (UKB.R lines 457, 536, 617)
+    ext1: [townsend, bmi, whr, alcohol_current, smoking_current]
+    ext2: [sbp, dbp, stroke, hypertension, ihd, lipid_lowering, bp_medication, sbp_adj, dbp_adj, t2d]
+    ext3: [antidepressant, antipsychotic]
+
+export:
+  min_cell: 10                   # smallest count printed in descriptive tables
